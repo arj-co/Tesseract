@@ -148,7 +148,6 @@ export default function App() {
         
         setTimeout(() => {
           const video = document.getElementById('webgazerVideoFeed');
-          const canvas = document.getElementById('webgazerVideoCanvas');
           if (video) {
             video.style.position = 'fixed';
             video.style.bottom = '60px';
@@ -159,7 +158,24 @@ export default function App() {
             video.style.zIndex = '50';
             video.style.border = '1px solid #E5E7EB';
           }
-          if (canvas) canvas.style.display = 'none';
+          
+          const canvases = [
+            document.getElementById('webgazerVideoCanvas'),
+            document.getElementById('webgazerFaceOverlay'),
+            document.getElementById('webgazerFaceFeedbackBox')
+          ];
+          canvases.forEach((canvas) => {
+            if (canvas) {
+              canvas.style.position = 'fixed';
+              canvas.style.bottom = '60px';
+              canvas.style.left = '16px';
+              canvas.style.width = '160px';
+              canvas.style.height = '120px';
+              canvas.style.borderRadius = '8px';
+              canvas.style.zIndex = '51';
+              canvas.style.pointerEvents = 'none'; // Prevent blocking clicks
+            }
+          });
         }, 2000);
       }
     }, 500);
