@@ -1,74 +1,264 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import TopBar from '../components/TopBar';
 import StatusBar from '../components/StatusBar';
 import ZoneCard from '../components/ZoneCard';
 import LetterKey from '../components/LetterKey';
 import ActionButton from '../components/ActionButton';
+import { useDwell } from '../hooks/useDwell';
+import { expandToSentence } from '../services/gemini';
 
-export default function EyraApp() {
-  const renderLetters = (lettersStr, dwellLetterConfig) => {
-    return lettersStr.split('').map((char) => (
-      <LetterKey 
-        key={char} 
-        letter={char} 
-        isDwelling={char === dwellLetterConfig} 
-      />
-    ));
+function playClickSound() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+    
+    gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.08);
+  } catch (e) {}
+}
+
+function speakSentence(text) {
+  if (!text) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  utterance.pitch = 1.0;
+  utterance.volume = 1.0;
+  
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v =>
+    v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha')
+  );
+  if (preferred) utterance.voice = preferred;
+  
+  window.speechSynthesis.speak(utterance);
+}
+
+export default function App() {
+  const [activeZone, setActiveZone] = useState(null);
+  const [wordBuffer, setWordBuffer] = useState('');
+  const [predictedSentence, setPredictedSentence] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [webcamReady, setWebcamReady] = useState(false);
+  const [progressMap, setProgressMap] = useState({});
+  
+  const gazeRef = useRef({ x: 0, y: 0 });
+  const llmTimerRef = useRef(null);
+
+  const triggerLLM = (buffer) => {
+    clearTimeout(llmTimerRef.current);
+    if (buffer.length >= 2) {
+      llmTimerRef.current = setTimeout(async () => {
+        setIsLoading(true);
+        const sentence = await expandToSentence(buffer);
+        setPredictedSentence(sentence);
+        setIsLoading(false);
+      }, 2000);
+    } else {
+      setPredictedSentence('');
+    }
+  };
+
+  const handleDwell = useCallback((hit) => {
+    if (hit.startsWith('zone-')) {
+      const zone = hit.split('-')[1];
+      setActiveZone(zone);
+      playClickSound();
+    } else if (hit.startsWith('letter-')) {
+      const letter = hit.split('-')[1];
+      setWordBuffer(prev => {
+        const next = prev + letter;
+        triggerLLM(next);
+        return next;
+      });
+      setActiveZone(null);
+      playClickSound();
+    } else if (hit === 'action-SPACE') {
+      setWordBuffer(prev => {
+        const next = prev + ' ';
+        triggerLLM(next);
+        return next;
+      });
+      playClickSound();
+    } else if (hit === 'action-BACKSPACE') {
+      setWordBuffer(prev => {
+        const next = prev.slice(0, -1);
+        if (next.length === 0) setPredictedSentence('');
+        else triggerLLM(next);
+        return next;
+      });
+      playClickSound();
+    } else if (hit === 'action-SPEAK') {
+      setPredictedSentence((currentPred) => {
+         setWordBuffer((currentBuf) => {
+            const textToSpeak = currentPred || currentBuf;
+            if (textToSpeak) {
+               speakSentence(textToSpeak);
+            }
+            return currentBuf;
+         });
+         return currentPred;
+      });
+    }
+  }, []);
+
+  const handleProgress = useCallback((hit, progress) => {
+    setProgressMap(prev => {
+      const current = prev[hit] || 0;
+      if (progress === 0 && !prev[hit]) return prev;
+      if (progress === 0 || Math.abs(current - progress) > 2) {
+        return { ...prev, [hit]: progress };
+      }
+      return prev;
+    });
+  }, []);
+
+  useDwell(gazeRef, 1500, handleDwell, handleProgress);
+
+  useEffect(() => {
+    let wg = null;
+    const interval = setInterval(() => {
+      if (window.webgazer) {
+        clearInterval(interval);
+        wg = window.webgazer;
+        
+        wg.setRegression('ridge')
+          .setTracker('TFFacemesh')
+          .setGazeListener((data, timestamp) => {
+            if (data) {
+              setWebcamReady(true);
+              gazeRef.current = { x: data.x, y: data.y };
+            }
+          })
+          .begin();
+
+        wg.showVideoPreview(true);
+        wg.showPredictionPoints(false);
+        
+        setTimeout(() => {
+          const video = document.getElementById('webgazerVideoFeed');
+          const canvas = document.getElementById('webgazerVideoCanvas');
+          if (video) {
+            video.style.position = 'fixed';
+            video.style.bottom = '60px';
+            video.style.left = '16px';
+            video.style.width = '160px';
+            video.style.height = '120px';
+            video.style.borderRadius = '8px';
+            video.style.zIndex = '50';
+            video.style.border = '1px solid #E5E7EB';
+          }
+          if (canvas) canvas.style.display = 'none';
+        }, 2000);
+      }
+    }, 500);
+
+    return () => {
+      clearInterval(interval);
+      if (wg) wg.end();
+    };
+  }, []);
+
+  const renderLetters = (lettersStr, zoneCode) => {
+    return lettersStr.split('').map((char) => {
+      const disabled = activeZone !== zoneCode;
+      const targetId = `letter-${char}`;
+      return (
+        <LetterKey 
+          key={char} 
+          id={targetId}
+          letter={char} 
+          disabled={disabled}
+          isDwelling={progressMap[targetId] > 0} 
+          dwellProgress={progressMap[targetId] || 0}
+        />
+      );
+    });
+  };
+
+  const getZoneProps = (code) => {
+    const id = `zone-${code}`;
+    return {
+      id,
+      isZoneActive: activeZone === code,
+      isOtherZoneActive: activeZone !== null && activeZone !== code
+    };
   };
 
   return (
     <div className="w-screen h-screen overflow-hidden flex flex-col bg-bgAlternate font-sans text-textPrimary">
-      {/* Top Bar */}
-      <TopBar />
+      <TopBar wordBuffer={wordBuffer} predictedSentence={predictedSentence} isLoading={isLoading} />
 
-      {/* Keyboard Area - Flex 1 allows it to fill available space */}
       <div className="flex-1 p-6 md:p-8 flex items-stretch justify-center">
-        
-        {/* CSS Grid for the 5 zones */}
         <div 
           className="w-full max-w-7xl h-full grid gap-8 md:gap-12"
           style={{ 
-            gridTemplateColumns: 'minmax(300px, 1fr) auto minmax(300px, 1fr)', 
-            gridTemplateRows: '1fr auto 1fr' 
+            gridTemplateColumns: '1fr 120px 1fr', 
+            gridTemplateRows: '1fr 120px 1fr' 
           }}
         >
-          {/* Top-Left: Active state */}
+          {/* Top-Left */}
           <div className="col-start-1 row-start-1">
-            <ZoneCard label="A – F" isActive={true}>
+            <ZoneCard label="A – F" {...getZoneProps('TL')}>
               <div className="grid grid-cols-3 gap-3 md:gap-5 w-full">
-                {renderLetters('ABC')}
-                <LetterKey letter="D" isDwelling={true} />
-                {renderLetters('EF')}
+                {renderLetters('ABCDEF', 'TL')}
               </div>
             </ZoneCard>
           </div>
 
           {/* Top-Right */}
           <div className="col-start-3 row-start-1">
-            <ZoneCard label="G – M">
+            <ZoneCard label="G – M" {...getZoneProps('TR')}>
               <div className="grid grid-cols-4 gap-3 md:gap-5 w-full justify-center">
-                {renderLetters('GHIJ')}
+                {renderLetters('GHIJ', 'TR')}
                 <div className="col-span-4 flex gap-3 md:gap-5 justify-center">
-                  {renderLetters('KLM')}
+                  {renderLetters('KLM', 'TR')}
                 </div>
               </div>
             </ZoneCard>
           </div>
 
           {/* Center Actions */}
-          <div className="col-start-2 row-start-2 flex flex-col justify-center items-center space-y-4 md:space-y-6 px-4">
-            <ActionButton label="SPACE" type="space" />
-            <ActionButton label="BACKSPACE" type="backspace" />
-            <ActionButton label="SPEAK" type="speak" />
+          <div className="col-start-2 row-start-2 flex flex-col justify-center items-center space-y-4 md:space-y-6">
+            <ActionButton 
+              id="action-SPACE" 
+              label="SPACE" 
+              type="space" 
+              isDwelling={progressMap['action-SPACE'] > 0} 
+              dwellProgress={progressMap['action-SPACE'] || 0} 
+            />
+            <ActionButton 
+              id="action-BACKSPACE" 
+              label="BACKSPACE" 
+              type="backspace" 
+              isDwelling={progressMap['action-BACKSPACE'] > 0} 
+              dwellProgress={progressMap['action-BACKSPACE'] || 0} 
+            />
+            <ActionButton 
+              id="action-SPEAK" 
+              label="SPEAK" 
+              type="speak" 
+              isDwelling={progressMap['action-SPEAK'] > 0} 
+              dwellProgress={progressMap['action-SPEAK'] || 0} 
+            />
           </div>
 
           {/* Bottom-Left */}
           <div className="col-start-1 row-start-3">
-            <ZoneCard label="N – T">
+            <ZoneCard label="N – T" {...getZoneProps('BL')}>
               <div className="grid grid-cols-4 gap-3 md:gap-5 w-full justify-center">
-                {renderLetters('NOPQ')}
+                {renderLetters('NOPQ', 'BL')}
                 <div className="col-span-4 flex gap-3 md:gap-5 justify-center">
-                  {renderLetters('RST')}
+                  {renderLetters('RST', 'BL')}
                 </div>
               </div>
             </ZoneCard>
@@ -76,19 +266,16 @@ export default function EyraApp() {
 
           {/* Bottom-Right */}
           <div className="col-start-3 row-start-3">
-            <ZoneCard label="U – Z">
+            <ZoneCard label="U – Z" {...getZoneProps('BR')}>
               <div className="grid grid-cols-3 gap-3 md:gap-5 w-full">
-                {renderLetters('UVW')}
-                {renderLetters('XYZ')}
+                {renderLetters('UVWXYZ', 'BR')}
               </div>
             </ZoneCard>
           </div>
-
         </div>
       </div>
 
-      {/* Status Bar */}
-      <StatusBar />
+      <StatusBar webcamReady={webcamReady} />
     </div>
   );
 }

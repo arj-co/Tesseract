@@ -1,12 +1,12 @@
 import React from 'react';
 
-export default function StatusBar() {
+export default function StatusBar({ webcamReady }) {
   return (
     <div className="h-10 bg-bgAlternate border-t border-gray-200 flex items-center justify-between px-6 text-sm font-medium text-textMuted shrink-0 shadow-inner">
       {/* Left: Webcam Status */}
       <div className="flex items-center gap-2">
-        <span className="w-2.5 h-2.5 bg-softGreen rounded-full animate-pulse shadow-[0_0_8px_rgba(52,168,83,0.6)]"></span>
-        <span>Webcam: Connecting...</span>
+        <span className={`w-2.5 h-2.5 rounded-full shadow-md animate-pulse ${webcamReady ? 'bg-softGreen shadow-[0_0_8px_rgba(52,168,83,0.6)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]'}`}></span>
+        <span>{webcamReady ? 'Webcam: Ready' : 'Webcam: Connecting...'}</span>
       </div>
 
       {/* Center: Dwell Info */}

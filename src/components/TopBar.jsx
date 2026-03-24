@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function TopBar() {
+export default function TopBar({ wordBuffer, predictedSentence, isLoading }) {
   return (
     <div className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm shrink-0">
       {/* Left: Logo */}
@@ -14,16 +14,28 @@ export default function TopBar() {
 
       {/* Center: Word Buffer */}
       <div className="flex-1 flex justify-center">
-        <div className="text-4xl font-mono tracking-widest font-bold text-textPrimary flex items-center">
-          BAT<span className="animate-pulse opacity-50 font-sans text-medicalBlue">_</span>
-        </div>
+        {wordBuffer.length > 0 ? (
+          <div className="text-4xl font-mono tracking-widest font-bold text-textPrimary flex items-center">
+            {wordBuffer}<span className="animate-pulse opacity-50 font-sans text-medicalBlue">_</span>
+          </div>
+        ) : (
+          <div className="text-2xl font-mono tracking-widest font-bold text-gray-300 flex items-center">
+            Start gazing...
+          </div>
+        )}
       </div>
 
       {/* Right: LLM Predicton */}
       <div className="flex-1 flex justify-end">
-        <div className="italic text-xl text-textMuted bg-bgAlternate px-6 py-2 rounded-xl border border-gray-100 max-w-sm truncate shadow-inner">
-          "I want to go to the bathroom"
-        </div>
+        {isLoading ? (
+          <div className="italic text-xl text-medicalBlue bg-blue-50 px-6 py-2 rounded-xl border border-blue-100 max-w-sm truncate shadow-inner animate-pulse">
+            Expanding...
+          </div>
+        ) : (
+          <div className="italic text-xl text-textMuted bg-bgAlternate px-6 py-2 rounded-xl border border-gray-100 max-w-sm truncate shadow-inner">
+             {predictedSentence ? `"${predictedSentence}"` : "Waiting for input"}
+          </div>
+        )}
       </div>
     </div>
   );
