@@ -143,6 +143,8 @@ export default function App() {
 
         wg.showVideoPreview(true);
         wg.showPredictionPoints(false);
+        if (typeof wg.showFaceOverlay === 'function') wg.showFaceOverlay(true);
+        if (typeof wg.showFaceFeedbackBox === 'function') wg.showFaceFeedbackBox(true);
         
         setTimeout(() => {
           const video = document.getElementById('webgazerVideoFeed');
