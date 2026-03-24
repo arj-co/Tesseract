@@ -63,10 +63,10 @@ export default function About() {
         <h2 className="font-serif text-4xl font-bold mb-16 text-center text-deepNavy">The Team</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { initials: 'MK', name: '[Team Member]', role: 'Frontend', color: 'bg-medicalBlue' },
-            { initials: 'JS', name: '[Team Member]', role: 'AI Integration', color: 'bg-softGreen' },
-            { initials: 'RT', name: '[Team Member]', role: 'UX & Research', color: 'bg-[#E11484]' },
-            { initials: 'AL', name: '[Team Member]', role: 'Presentation', color: 'bg-[#19486A]' }
+            { initials: 'HS', name: 'Harsh Sharma', role: 'Frontend', color: 'bg-medicalBlue' },
+            { initials: 'AS', name: 'Arjun Shewalkar', role: 'AI Integration', color: 'bg-softGreen' },
+            { initials: 'SP', name: 'Sandhya Patil', role: 'UX & Research', color: 'bg-[#E11484]' },
+            { initials: 'HS', name: 'Harsh Shedge', role: 'Presentation', color: 'bg-[#19486A]' }
           ].map((person, idx) => (
             <div key={idx} className="bg-white p-8 rounded-3xl shadow-subtle border border-gray-100 flex flex-col items-center text-center">
               <div className={`w-24 h-24 rounded-full ${person.color} text-white flex items-center justify-center text-3xl font-bold mb-6 shadow-md`}>
@@ -85,10 +85,9 @@ export default function About() {
           <h3 className="font-serif text-3xl font-bold text-deepNavy mb-6">Built at Tesseract '26 — VIT Pune</h3>
           <div className="flex flex-wrap justify-center gap-4 text-textMuted font-medium mb-6">
             <span className="bg-blue-50 text-medicalBlue px-4 py-2 rounded-lg border border-blue-100">Open Innovation / SDG</span>
-            <span className="bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">24 Hours Duration</span>
           </div>
           <p className="text-gray-500">
-            This project was conceived and prototyped entirely during the Tesseract '26 Hackathon.
+            This project was conceived and prototyped entirely during the Tesseract '26 Hackathon - Round 1.
           </p>
         </div>
       </section>
