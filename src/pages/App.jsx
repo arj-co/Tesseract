@@ -126,6 +126,29 @@ export default function App() {
 
   useEffect(() => {
     let wg = null;
+    
+    // Inject global CSS to forcefully lock WebGazer's dynamically generated elements
+    // We use !important because WebGazer updates inline styles continuously on requestAnimationFrame
+    const styleEl = document.createElement('style');
+    styleEl.innerHTML = `
+      #webgazerVideoFeed, #webgazerVideoCanvas, #webgazerFaceOverlay {
+        position: fixed !important;
+        bottom: 60px !important;
+        left: 16px !important;
+        top: auto !important;
+        right: auto !important;
+        width: 160px !important;
+        height: 120px !important;
+        border-radius: 8px !important;
+        z-index: 50 !important;
+        pointer-events: none !important;
+      }
+      #webgazerFaceFeedbackBox {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+
     const interval = setInterval(() => {
       if (window.webgazer) {
         clearInterval(interval);
@@ -144,45 +167,14 @@ export default function App() {
         wg.showVideoPreview(true);
         wg.showPredictionPoints(false);
         if (typeof wg.showFaceOverlay === 'function') wg.showFaceOverlay(true);
-        if (typeof wg.showFaceFeedbackBox === 'function') wg.showFaceFeedbackBox(true);
-        
-        setTimeout(() => {
-          const video = document.getElementById('webgazerVideoFeed');
-          if (video) {
-            video.style.position = 'fixed';
-            video.style.bottom = '60px';
-            video.style.left = '16px';
-            video.style.width = '160px';
-            video.style.height = '120px';
-            video.style.borderRadius = '8px';
-            video.style.zIndex = '50';
-            video.style.border = '1px solid #E5E7EB';
-          }
-          
-          const canvases = [
-            document.getElementById('webgazerVideoCanvas'),
-            document.getElementById('webgazerFaceOverlay'),
-            document.getElementById('webgazerFaceFeedbackBox')
-          ];
-          canvases.forEach((canvas) => {
-            if (canvas) {
-              canvas.style.position = 'fixed';
-              canvas.style.bottom = '60px';
-              canvas.style.left = '16px';
-              canvas.style.width = '160px';
-              canvas.style.height = '120px';
-              canvas.style.borderRadius = '8px';
-              canvas.style.zIndex = '51';
-              canvas.style.pointerEvents = 'none'; // Prevent blocking clicks
-            }
-          });
-        }, 2000);
+        if (typeof wg.showFaceFeedbackBox === 'function') wg.showFaceFeedbackBox(false);
       }
     }, 500);
 
     return () => {
       clearInterval(interval);
       if (wg) wg.end();
+      if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
     };
   }, []);
 
