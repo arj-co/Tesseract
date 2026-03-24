@@ -42,7 +42,7 @@ export default function About() {
             <div className="bg-white/5 p-10 rounded-3xl border border-white/10 hover:bg-white/10 transition-colors">
               <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">💻</div>
               <h3 className="text-2xl font-bold mb-4 font-serif">Zero Hardware</h3>
-              <p className="text-gray-300 leading-relaxed text-lg">Works on any standard laptop with a webcam. No proprietary infrared trackers or specialized screens required.</p>
+              <p className="text-gray-300 leading-relaxed text-lg">Works on any standard laptop or smartphone with a camera. No proprietary infrared trackers or specialized screens required.</p>
             </div>
             <div className="bg-white/5 p-10 rounded-3xl border border-white/10 hover:bg-white/10 transition-colors">
               <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">🔓</div>
