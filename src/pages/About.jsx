@@ -86,9 +86,14 @@ export default function About() {
           <div className="flex flex-wrap justify-center gap-4 text-textMuted font-medium mb-6">
             <span className="bg-blue-50 text-medicalBlue px-4 py-2 rounded-lg border border-blue-100">Open Innovation / SDG</span>
           </div>
-          <p className="text-gray-500">
-            This project was conceived and prototyped entirely during the Tesseract '26 Hackathon - Round 1.
-          </p>
+          <div className="text-gray-500 text-lg space-y-4">
+            <p>
+              This project was conceived and prototyped entirely during the Tesseract '26 Hackathon.
+            </p>
+            <p>
+              <span className="font-semibold text-textPrimary">Round 1</span> — The project is submitted to the Open Innovation track, aligned with SDG 3 (Good Health) and SDG 10 (Reduced Inequalities).
+            </p>
+          </div>
         </div>
       </section>
 
