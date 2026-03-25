@@ -14,7 +14,7 @@ function playClickSound() {
     const gainNode = audioCtx.createGain();
     
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); 
     
     gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
@@ -43,16 +43,120 @@ function speakSentence(text) {
   window.speechSynthesis.speak(utterance);
 }
 
+function repositionWebGazerVideo() {
+  // Show the video feed manually after hiding via WebGazer API
+  const video = document.getElementById('webgazerVideoFeed');
+  const canvas = document.getElementById('webgazerFaceFeedbackBox');
+  const predictionCanvas = document.getElementById('webgazerVideoCanvas');
+  const faceOverlayCanvas = document.getElementById('webgazerFaceOverlay');
+
+  if (video) {
+    Object.assign(video.style, {
+      display:      'block',
+      position:     'fixed',
+      bottom:       '56px',       // above status bar
+      left:         '16px',
+      width:        '160px',
+      height:       '120px',
+      borderRadius: '12px',
+      border:       '1px solid #E5E7EB',
+      zIndex:       '9999',
+      objectFit:    'cover',
+      transform:    'scaleX(-1)', // mirror so user sees natural reflection
+    });
+  }
+
+  // Hide everything else WebGazer injects
+  [canvas, predictionCanvas, faceOverlayCanvas].forEach(el => {
+    if (el) el.style.display = 'none';
+  });
+}
+
 export default function App() {
+  // Application logic state
   const [activeZone, setActiveZone] = useState(null);
   const [wordBuffer, setWordBuffer] = useState('');
   const [predictedSentence, setPredictedSentence] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // App system state
+  const [camStatus, setCamStatus] = useState('idle');
   const [webcamReady, setWebcamReady] = useState(false);
+  const [showChromeWarning, setShowChromeWarning] = useState(false);
   const [progressMap, setProgressMap] = useState({});
   
-  const gazeRef = useRef({ x: 0, y: 0 });
+  // Refs
+  const gazeRef = useRef({ x: null, y: null });
   const llmTimerRef = useRef(null);
+  const webcamReadyRef = useRef(false);
+
+  useEffect(() => {
+    const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+    if (!isChrome) {
+      console.warn('Eyra works best in Google Chrome.');
+      setShowChromeWarning(true);
+    }
+  }, []);
+
+  async function initWebGazer() {
+    const wg = window.webgazer;
+
+    if (!wg) {
+      console.error('WebGazer not found — check index.html script tag');
+      return;
+    }
+
+    try {
+      await wg
+        .setRegression('ridge')
+        .setTracker('TFFacemesh')
+        .showVideoPreview(false)
+        .showPredictionPoints(false)
+        .showFaceOverlay(false)
+        .showFaceFeedbackBox(false)
+        .setGazeListener((data) => {
+          if (data && data.x != null && data.y != null) {
+            gazeRef.current = { x: data.x, y: data.y };
+            if (!webcamReadyRef.current) {
+              webcamReadyRef.current = true;
+              setWebcamReady(true);
+            }
+          }
+        })
+        .begin();
+
+      // After begin(), manually show and position the video feed
+      setTimeout(() => {
+        repositionWebGazerVideo();
+      }, 1500);
+
+    } catch (err) {
+      console.error('WebGazer init failed:', err);
+    }
+  }
+
+  async function requestCamPermission() {
+    setCamStatus('requesting');
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      setCamStatus('granted');
+      // Now init webgazer
+      await initWebGazer();
+    } catch (err) {
+      setCamStatus('denied');
+      console.error('Camera denied:', err);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (window.webgazer && camStatus === 'granted') {
+        try {
+          window.webgazer.end();
+        } catch (e) {}
+      }
+    };
+  }, [camStatus]);
 
   const triggerLLM = (buffer) => {
     clearTimeout(llmTimerRef.current);
@@ -68,13 +172,15 @@ export default function App() {
     }
   };
 
-  const handleDwell = useCallback((hit) => {
-    if (hit.startsWith('zone-')) {
-      const zone = hit.split('-')[1];
+  const handleDwell = useCallback((hitId) => {
+    if (!hitId) return;
+
+    if (hitId.startsWith('zone-')) {
+      const zone = hitId.split('-')[1];
       setActiveZone(zone);
       playClickSound();
-    } else if (hit.startsWith('letter-')) {
-      const letter = hit.split('-')[1];
+    } else if (hitId.startsWith('letter-')) {
+      const letter = hitId.split('-')[1];
       setWordBuffer(prev => {
         const next = prev + letter;
         triggerLLM(next);
@@ -82,14 +188,14 @@ export default function App() {
       });
       setActiveZone(null);
       playClickSound();
-    } else if (hit === 'action-SPACE') {
+    } else if (hitId === 'action-SPACE') {
       setWordBuffer(prev => {
         const next = prev + ' ';
         triggerLLM(next);
         return next;
       });
       playClickSound();
-    } else if (hit === 'action-BACKSPACE') {
+    } else if (hitId === 'action-BACKSPACE') {
       setWordBuffer(prev => {
         const next = prev.slice(0, -1);
         if (next.length === 0) setPredictedSentence('');
@@ -97,7 +203,7 @@ export default function App() {
         return next;
       });
       playClickSound();
-    } else if (hit === 'action-SPEAK') {
+    } else if (hitId === 'action-SPEAK') {
       setPredictedSentence((currentPred) => {
          setWordBuffer((currentBuf) => {
             const textToSpeak = currentPred || currentBuf;
@@ -108,75 +214,59 @@ export default function App() {
          });
          return currentPred;
       });
+      playClickSound();
     }
   }, []);
 
-  const handleProgress = useCallback((hit, progress) => {
+  const handleProgress = useCallback((hitId, progress) => {
     setProgressMap(prev => {
-      const current = prev[hit] || 0;
-      if (progress === 0 && !prev[hit]) return prev;
+      if (!hitId) return {}; // clear
+      
+      const current = prev[hitId] || 0;
+      if (progress === 0 && !prev[hitId]) return prev;
       if (progress === 0 || Math.abs(current - progress) > 2) {
-        return { ...prev, [hit]: progress };
+        return { ...prev, [hitId]: progress };
       }
       return prev;
     });
   }, []);
 
-  useDwell(gazeRef, 1500, handleDwell, handleProgress);
+  useDwell({ gazeRef, dwellTime: 1500, onDwell: handleDwell, onProgress: handleProgress });
 
-  useEffect(() => {
-    let wg = null;
-    
-    // Inject global CSS to forcefully lock WebGazer's dynamically generated elements
-    // We use !important because WebGazer updates inline styles continuously on requestAnimationFrame
-    const styleEl = document.createElement('style');
-    styleEl.innerHTML = `
-      #webgazerVideoFeed, #webgazerVideoCanvas, #webgazerFaceOverlay {
-        position: fixed !important;
-        bottom: 60px !important;
-        left: 16px !important;
-        top: auto !important;
-        right: auto !important;
-        width: 160px !important;
-        height: 120px !important;
-        border-radius: 8px !important;
-        z-index: 50 !important;
-        pointer-events: none !important;
-      }
-      #webgazerFaceFeedbackBox {
-        display: none !important;
-      }
-    `;
-    document.head.appendChild(styleEl);
+  if (camStatus === 'idle' || camStatus === 'requesting') {
+    return (
+      <div className="w-screen h-screen flex flex-col items-center justify-center bg-bgAlternate font-sans p-6 text-center text-textPrimary">
+        <div className="bg-white p-12 max-w-lg w-full rounded-2xl shadow-subtle border border-gray-100 flex flex-col items-center">
+          <svg className="w-16 h-16 text-medicalBlue mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          <h2 className="font-serif text-3xl font-bold mb-4 text-deepNavy">Eyra needs your camera</h2>
+          <p className="text-lg text-textMuted mb-8 leading-relaxed">
+             Your webcam is used only for gaze tracking. Nothing is recorded or transmitted.
+          </p>
+          <button 
+            onClick={requestCamPermission}
+            disabled={camStatus === 'requesting'}
+            className="w-full bg-medicalBlue text-white py-4 rounded-xl font-bold hover:bg-deepNavy transition-colors text-lg"
+          >
+            {camStatus === 'requesting' ? 'Requesting...' : 'Enable Camera'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-    const interval = setInterval(() => {
-      if (window.webgazer) {
-        clearInterval(interval);
-        wg = window.webgazer;
-        
-        wg.setRegression('ridge')
-          .setTracker('TFFacemesh')
-          .setGazeListener((data, timestamp) => {
-            if (data) {
-              setWebcamReady(true);
-              gazeRef.current = { x: data.x, y: data.y };
-            }
-          })
-          .begin();
-
-        wg.showVideoPreview(true);
-        wg.showPredictionPoints(false);
-        if (typeof wg.showFaceOverlay === 'function') wg.showFaceOverlay(true);
-        if (typeof wg.showFaceFeedbackBox === 'function') wg.showFaceFeedbackBox(false);
-      }
-    }, 500);
-
-    return () => {
-      clearInterval(interval);
-      if (wg) wg.end();
-      if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
-    };
-  }, []);
+  if (camStatus === 'denied') {
+    return (
+      <div className="w-screen h-screen flex flex-col items-center justify-center bg-bgAlternate font-sans p-6 text-center text-textPrimary">
+        <h2 className="font-serif text-3xl font-bold mb-4 text-red-600">Camera access denied</h2>
+        <p className="text-lg text-textMuted max-w-md mx-auto">
+          Please allow camera access in your browser settings and refresh the page.
+        </p>
+      </div>
+    );
+  }
 
   const renderLetters = (lettersStr, zoneCode) => {
     return lettersStr.split('').map((char) => {
@@ -206,6 +296,15 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen overflow-hidden flex flex-col bg-bgAlternate font-sans text-textPrimary">
+      {showChromeWarning && (
+        <div className="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 flex items-center justify-between text-sm shrink-0 shadow-sm z-[99999]" data-dwell="chrome-warning">
+          <span className="font-medium max-w-3xl">Eyra works best in Google Chrome. Other browsers may have reduced gaze accuracy.</span>
+          <button onClick={() => setShowChromeWarning(false)} className="opacity-70 hover:opacity-100 font-bold ml-4 p-2 cursor-pointer">
+            ✕
+          </button>
+        </div>
+      )}
+
       <TopBar wordBuffer={wordBuffer} predictedSentence={predictedSentence} isLoading={isLoading} />
 
       <div className="flex-1 p-6 md:p-8 flex items-stretch justify-center">

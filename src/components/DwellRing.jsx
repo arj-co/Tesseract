@@ -1,21 +1,33 @@
 import React from 'react';
 
-export default function DwellRing({ active, progress, children }) {
+const RADIUS = 28;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+export default function DwellRing({ active, progress = 0, children }) {
+  const strokeDash = (progress / 100) * CIRCUMFERENCE;
+
   return (
-    <div className={`relative flex items-center justify-center w-full h-full rounded-xl transition-all ${
-      active ? 'bg-[#E8F0FE] ring-2 ring-medicalBlue scale-[1.05] z-20 shadow-md' : ''
-    }`}>
+    <div style={{ position: 'relative', display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
       {children}
-      {active && (
-        <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none p-1">
-          <circle 
-            cx="50%" cy="50%" r="42%" 
-            fill="none" 
-            stroke="#1A73E8" 
-            strokeWidth="4" 
-            strokeDasharray="100 100" 
-            strokeDashoffset={100 - progress} 
-            className="opacity-80 transition-all duration-75"
+      {progress > 0 && (
+        <svg
+          style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 10 }}
+          width={64} height={64}
+        >
+          <circle
+            cx={32} cy={32} r={RADIUS}
+            fill="none"
+            stroke="#E8F0FE"
+            strokeWidth={3}
+          />
+          <circle
+            cx={32} cy={32} r={RADIUS}
+            fill="none"
+            stroke="#1A73E8"
+            strokeWidth={3}
+            strokeDasharray={`${strokeDash} ${CIRCUMFERENCE}`}
+            strokeLinecap="round"
+            transform="rotate(-90 32 32)"
           />
         </svg>
       )}

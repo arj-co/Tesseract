@@ -1,67 +1,69 @@
 import { useEffect, useRef, useCallback } from 'react';
 
 export function useDwell(gazeRef, dwellTime = 1500, onDwell, onProgress) {
-  const dwellTarget = useRef(null);
+  const currentTarget = useRef(null);
   const dwellStart = useRef(null);
-  const animFrameRef = useRef(null);
+  const rafRef = useRef(null);
 
-  const checkDwell = useCallback(() => {
+  const tick = useCallback(() => {
     const gaze = gazeRef.current;
-    if (!gaze) {
-      animFrameRef.current = requestAnimationFrame(checkDwell);
+
+    if (!gaze || gaze.x == null) {
+      rafRef.current = requestAnimationFrame(tick);
       return;
     }
 
-    const elements = document.querySelectorAll('[data-dwell]');
-    let hit = null;
+    // Find which data-dwell element the gaze is over
+    const allTargets = document.querySelectorAll('[data-dwell]');
+    let hitId = null;
 
-    elements.forEach(el => {
-      const rect = el.getBoundingClientRect();
-      const margin = 10; // little leniency
-      if (
-        gaze.x >= rect.left - margin &&
-        gaze.x <= rect.right + margin &&
-        gaze.y >= rect.top - margin &&
-        gaze.y <= rect.bottom + margin
-      ) {
-        hit = el.getAttribute('data-dwell');
+    for (const el of allTargets) {
+      const r = el.getBoundingClientRect();
+      if (gaze.x >= r.left && gaze.x <= r.right &&
+          gaze.y >= r.top  && gaze.y <= r.bottom) {
+        hitId = el.getAttribute('data-dwell');
+        break;
       }
-    });
+    }
 
-    if (hit) {
-      if (dwellTarget.current !== hit) {
-        if (dwellTarget.current && onProgress) {
-          onProgress(dwellTarget.current, 0); // Clear old target progress
-        }
-        dwellTarget.current = hit;
+    if (hitId) {
+      if (currentTarget.current !== hitId) {
+        // New target — reset timer
+        currentTarget.current = hitId;
         dwellStart.current = Date.now();
-        if (onProgress) onProgress(hit, 0);
+        onProgress?.(hitId, 0);
       } else {
         const elapsed = Date.now() - dwellStart.current;
-        const progress = Math.min(100, Math.floor((elapsed / dwellTime) * 100));
-        
-        if (onProgress) onProgress(hit, progress);
+        const progress = Math.min(100, (elapsed / dwellTime) * 100);
+        onProgress?.(hitId, progress);
 
         if (elapsed >= dwellTime) {
-          onDwell(hit);
-          if (onProgress) onProgress(hit, 0);
-          dwellTarget.current = null;
+          onDwell(hitId);
+          currentTarget.current = null;
           dwellStart.current = null;
+          onProgress?.(hitId, 0);
+          
+          // Cooldown — pause dwell detection for 800ms after a selection
+          cancelAnimationFrame(rafRef.current);
+          setTimeout(() => {
+            rafRef.current = requestAnimationFrame(tick);
+          }, 800);
+          return;
         }
       }
     } else {
-      if (dwellTarget.current) {
-        if (onProgress) onProgress(dwellTarget.current, 0);
-        dwellTarget.current = null;
+      if (currentTarget.current !== null) {
+        if (onProgress) onProgress(currentTarget.current, 0);
+        currentTarget.current = null;
         dwellStart.current = null;
       }
     }
 
-    animFrameRef.current = requestAnimationFrame(checkDwell);
+    rafRef.current = requestAnimationFrame(tick);
   }, [gazeRef, dwellTime, onDwell, onProgress]);
 
   useEffect(() => {
-    animFrameRef.current = requestAnimationFrame(checkDwell);
-    return () => cancelAnimationFrame(animFrameRef.current);
-  }, [checkDwell]);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [tick]);
 }
