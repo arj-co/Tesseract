@@ -88,6 +88,7 @@ export default function App() {
         triggerLLM(next);
         return next;
       });
+      setActiveZone(null);
       playClickSound();
     } else if (hit === 'action-BACKSPACE') {
       setWordBuffer(prev => {
@@ -96,8 +97,10 @@ export default function App() {
         else triggerLLM(next);
         return next;
       });
+      setActiveZone(null);
       playClickSound();
     } else if (hit === 'action-SPEAK') {
+      setActiveZone(null);
       setPredictedSentence((currentPred) => {
          setWordBuffer((currentBuf) => {
             const textToSpeak = currentPred || currentBuf;
@@ -200,7 +203,9 @@ export default function App() {
     return {
       id,
       isZoneActive: activeZone === code,
-      isOtherZoneActive: activeZone !== null && activeZone !== code
+      isOtherZoneActive: activeZone !== null && activeZone !== code,
+      isDwelling: progressMap[id] > 0,
+      dwellProgress: progressMap[id] || 0
     };
   };
 
