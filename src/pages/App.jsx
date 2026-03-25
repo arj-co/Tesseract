@@ -295,7 +295,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-screen h-screen overflow-hidden flex flex-col bg-bgAlternate font-sans text-textPrimary">
+    <div className="w-screen h-screen overflow-hidden flex flex-col bg-slate-100 font-sans text-textPrimary">
       {showChromeWarning && (
         <div className="bg-yellow-100 border-b border-yellow-200 text-yellow-800 px-4 py-2 flex items-center justify-between text-sm shrink-0 shadow-sm z-[99999]" data-dwell="chrome-warning">
           <span className="font-medium max-w-3xl">Eyra works best in Google Chrome. Other browsers may have reduced gaze accuracy.</span>
