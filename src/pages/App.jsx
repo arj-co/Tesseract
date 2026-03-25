@@ -182,6 +182,12 @@ export default function App() {
   }, []);
 
   const renderLetters = (lettersStr, zoneCode) => {
+    let focusColor = '';
+    if (zoneCode === 'TL') focusColor = 'hover:bg-blue-50 hover:text-blue-900 border-slate-200 hover:border-blue-400';
+    else if (zoneCode === 'TR') focusColor = 'hover:bg-violet-50 hover:text-violet-900 border-slate-200 hover:border-violet-400';
+    else if (zoneCode === 'BL') focusColor = 'hover:bg-teal-50 hover:text-teal-900 border-slate-200 hover:border-teal-400';
+    else if (zoneCode === 'BR') focusColor = 'hover:bg-amber-50 hover:text-amber-900 border-slate-200 hover:border-amber-400';
+
     return lettersStr.split('').map((char) => {
       const disabled = activeZone !== zoneCode;
       const targetId = `letter-${char}`;
@@ -193,6 +199,7 @@ export default function App() {
           disabled={disabled}
           isDwelling={progressMap[targetId] > 0} 
           dwellProgress={progressMap[targetId] || 0}
+          accentHoverClass={focusColor}
         />
       );
     });
